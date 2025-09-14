@@ -15,7 +15,7 @@ https://en.wikipedia.org/wiki/Collatz_conjecture
 ## Quick start
 
 ```bash
-git clone https://github.com/<you>/collatz-runner.git
+git clone https://github.com/Vandovers/collatz-runner.git
 cd collatz-runner
 python3 --version   # 3.10+ recommended
 python collatz.py 27
