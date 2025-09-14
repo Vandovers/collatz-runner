@@ -1,7 +1,13 @@
+#!/usr/bin/env python3
+# Collatz Runner — Python 3.8+ compatible
+from __future__ import annotations
+
 import argparse
-import sys
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
+
+__version__ = "0.2.0"
 
 def ctz(n: int) -> int:
     """Count trailing zeros in binary of n (n>0)."""
@@ -9,13 +15,13 @@ def ctz(n: int) -> int:
 
 def run_collatz(
     start: int,
-    accelerated: bool,
-    max_steps: int | None,
-    log_file: Path | None,
-    log_every: int,
-    save_sequence: Path | None,
-    quiet: bool,
-    peak_updates: bool,
+    accelerated: bool = False,
+    max_steps: Optional[int] = None,
+    log_file: Optional[Path] = None,
+    log_every: int = 1_000_000,
+    save_sequence: Optional[Path] = None,
+    quiet: bool = False,
+    peak_updates: bool = False,
 ):
     n = start
     if n <= 0:
@@ -26,19 +32,16 @@ def run_collatz(
     max_value = n
     max_bitlen = n.bit_length()
 
-   
     seq_f = None
     if save_sequence:
         seq_f = open(save_sequence, "a", buffering=1)
-        seq_f.write(f"# Collatz sequence starting at {start} ({datetime.now().isoformat()})\n")
-        seq_f.write(f"{n}\n")
+        seq_f.write(f"# Collatz sequence starting at {start} ({datetime.now().isoformat()})\n{n}\n")
 
-    
     if log_file:
         with open(log_file, "a", buffering=1) as lf:
             lf.write(f"# Start {start} at {datetime.now().isoformat()}\n")
 
-    def log_state(force=False):
+    def log_state(force: bool = False) -> None:
         if not log_file:
             return
         if force or steps % log_every == 0:
@@ -52,9 +55,7 @@ def run_collatz(
         while True:
             if max_steps is not None and steps >= max_steps:
                 break
-
             if n == 1:
-                
                 break
 
             if accelerated:
@@ -69,7 +70,6 @@ def run_collatz(
                     n >>= t
                     steps += 1 + t
             else:
-                
                 if n % 2 == 0:
                     n //= 2
                 else:
@@ -87,20 +87,12 @@ def run_collatz(
 
             if seq_f:
                 seq_f.write(f"{n}\n")
-
             log_state()
-
-    except KeyboardInterrupt:
-        if not quiet:
-            print("\n[Interrupted] Writing final state…")
-
     finally:
         if seq_f:
-            seq_f.flush()
             seq_f.close()
         log_state(force=True)
 
-    
     if not quiet:
         print("— Collatz run complete —")
         print(f"start         : {start}")
@@ -112,70 +104,67 @@ def run_collatz(
             print("(Stopped due to --max-steps before reaching 1.)")
 
     return {
-        "start": start,
-        "final": n,
-        "steps": steps,
-        "odd_steps": odd_steps,
-        "peak": max_value,
-        "peak_bits": max_bitlen,
+        "start": start, "final": n, "steps": steps,
+        "odd_steps": odd_steps, "peak": max_value, "peak_bits": max_bitlen,
     }
 
 def parse_int(arg: str) -> int:
-    """
-    Parse big ints safely:
-    - decimal: 123456...
-    - binary  : 0b...
-    - hex     : 0x...
-    - underscores allowed: 1_000_000
-    """
+    """Accept decimal, 0x..., 0b..., and underscores."""
     return int(arg.replace("_", ""), 0)
 
-def main():
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Memory-safe, resumable Collatz runner for huge integers."
+        description="Collatz runner for huge integers (works on Python 3.8+).",
+        epilog="Tip: if no START is provided, an interactive prompt appears (useful on online IDEs).",
     )
-
-   
-    p.add_argument(
-        "start",
-        nargs="?",
-        help="Starting positive integer (supports 0x.., 0b.., underscores)."
-    )
-    p.add_argument(
-        "--start",
-        dest="start_opt",
-        help="Same as positional 'start' (useful in IDEs/VS Code launch configs)."
-    )
-
+    p.add_argument("start", nargs="?", help="Starting positive integer (0x.., 0b.., underscores ok).")
     p.add_argument("--accelerated", action="store_true",
-                   help="Use accelerated steps (after 3n+1, strip all factors of 2 at once). Much faster.")
-    p.add_argument("--max-steps", type=int, default=None, help="Stop after this many total steps (optional).")
-    p.add_argument("--log-file", type=Path, default=None, help="Append progress lines to this file.")
-    p.add_argument("--log-every", type=int, default=1_000_000, help="Log every N steps (default: 1,000,000).")
+                   help="After 3n+1, strip all factors of 2 in one go.")
+    p.add_argument("--max-steps", type=int, default=None, help="Stop after N steps.")
+    p.add_argument("--log-file", type=Path, default=None, help="Append progress to this file.")
+    p.add_argument("--log-every", type=int, default=1_000_000, help="Log every N steps (default 1,000,000).")
     p.add_argument("--save-sequence", type=Path, default=None,
-                   help="Append the entire sequence to this file (warning: can grow huge).")
+                   help="Write entire sequence to file (can get huge).")
     p.add_argument("--quiet", action="store_true", help="Minimal console output.")
-    p.add_argument("--peak-updates", action="store_true",
-                   help="Print a line each time a new peak value is reached.")
-    args = p.parse_args()
+    p.add_argument("--peak-updates", action="store_true", help="Print when a new peak value is reached.")
+    p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    return p
 
-  
-    raw_start = args.start if args.start is not None else args.start_opt
-    if raw_start is None:
-        p.error("missing start value. Provide a positional START or use --start START (e.g., `python collatz.py 27`).")
+def interactive_prompt() -> dict:
+    print("Collatz Runner (interactive)\n")
+    while True:
+        s = input("Enter START (decimal/0x.. or 0b.., underscores ok): ").strip()
+        try:
+            start = parse_int(s)
+            if start <= 0:
+                raise ValueError
+            break
+        except Exception:
+            print("  Invalid input. Try again.")
+    accel = input("Accelerated mode? [y/N]: ").strip().lower().startswith("y")
+    ms = input("Max steps (blank for none): ").strip()
+    max_steps = int(ms) if ms else None
+    return run_collatz(start, accelerated=accel, max_steps=max_steps)
 
-    start = parse_int(raw_start)
-    run_collatz(
-        start=start,
-        accelerated=args.accelerated,
-        max_steps=args.max_steps,
-        log_file=args.log_file,
-        log_every=max(1, args.log_every),
-        save_sequence=args.save_sequence,
-        quiet=args.quiet,
-        peak_updates=args.peak_updates,
-    )
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
 
+    if args.start is None:
+        
+        interactive_prompt()
+    else:
+        start = parse_int(args.start)
+        run_collatz(
+            start=start,
+            accelerated=args.accelerated,
+            max_steps=args.max_steps,
+            log_file=args.log_file,
+            log_every=max(1, args.log_every),
+            save_sequence=args.save_sequence,
+            quiet=args.quiet,
+            peak_updates=args.peak_updates,
+        )
 
 if __name__ == "__main__":
     main()
