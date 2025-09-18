@@ -7,7 +7,7 @@ About the problem: [Collatz Conjecture](https://handwiki.org/wiki/Collatz_conjec
 
 ---
 
-## Features (￢‿￢ )
+## Features
 - Big-int friendly (Python’s arbitrary precision)
 - Accelerated mode: after `3n+1`, remove all factors of two in one go
 - Input formats: decimal (`1234`), hex (`0xABC`), binary (`0b10101`), underscores (`1_000_000`)
